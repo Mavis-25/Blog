@@ -36,9 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Initialize auth state
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
@@ -51,7 +49,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         fetchUserProfile(session.user);
@@ -65,6 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
+      // First check if the profile exists
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
@@ -72,7 +70,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
 
       if (error) throw error;
-      if (!profile) throw new Error('Profile not found');
+
+      // If profile doesn't exist, create it
+      if (!profile) {
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: supabaseUser.id,
+            email: supabaseUser.email,
+            name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+          })
+          .select()
+          .single();
+
+        if (createError) throw createError;
+        if (!newProfile) throw new Error('Failed to create profile');
+        
+        profile = newProfile;
+      }
 
       // Fetch following and followers
       const { data: followingData } = await supabase
@@ -101,26 +116,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error fetching user profile:', error);
       setUser(null);
       setIsAuthenticated(false);
-      
-      // If the profile doesn't exist but the user is authenticated, create it
-      if (error.message === 'Profile not found') {
-        try {
-          const { error: createError } = await supabase
-            .from('profiles')
-            .insert({
-              id: supabaseUser.id,
-              email: supabaseUser.email,
-              name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
-            });
-
-          if (!createError) {
-            // Retry fetching the profile
-            fetchUserProfile(supabaseUser);
-          }
-        } catch (createError) {
-          console.error('Error creating profile:', createError);
-        }
-      }
     }
   };
 
@@ -151,7 +146,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (name: string, email: string, password: string) => {
     try {
       setLoading(true);
-      // First, create the auth user
+      
+      // First create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -160,7 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (authError) throw authError;
       if (!authData.user) throw new Error("Failed to create user");
 
-      // Then, create the profile
+      // Then create the profile
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
