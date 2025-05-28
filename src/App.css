@@ -1,0 +1,46 @@
+
+/* Base styles */
+#root {
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* FireStack specific styles */
+.firestack-container {
+  @apply container mx-auto px-4 py-8;
+}
+
+.firestack-heading {
+  @apply text-3xl font-bold mb-6;
+}
+
+.firestack-subheading {
+  @apply text-xl font-medium mb-4;
+}
+
+.firestack-card {
+  @apply bg-white rounded-xl shadow-md transition-all duration-300 hover:shadow-lg border border-transparent hover:border-gray-100;
+}
+
+.firestack-button {
+  @apply bg-firestack-primary text-white hover:bg-firestack-accent transition-colors;
+}
+
+.firestack-input {
+  @apply border border-gray-200 rounded-lg px-4 py-2 focus:ring-2 focus:ring-firestack-primary focus:border-transparent;
+}
+
+/* Animation for logo */
+@keyframes pulse-light {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.logo-pulse {
+  animation: pulse-light 2s ease-in-out infinite;
+}
