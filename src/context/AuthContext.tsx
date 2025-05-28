@@ -69,9 +69,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!profile) throw new Error('Profile not found');
 
       // Fetch following and followers
       const { data: followingData } = await supabase
@@ -100,6 +101,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error fetching user profile:', error);
       setUser(null);
       setIsAuthenticated(false);
+      
+      // If the profile doesn't exist but the user is authenticated, create it
+      if (error.message === 'Profile not found') {
+        try {
+          const { error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              id: supabaseUser.id,
+              email: supabaseUser.email,
+              name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || 'User',
+            });
+
+          if (!createError) {
+            // Retry fetching the profile
+            fetchUserProfile(supabaseUser);
+          }
+        } catch (createError) {
+          console.error('Error creating profile:', createError);
+        }
+      }
     }
   };
 
