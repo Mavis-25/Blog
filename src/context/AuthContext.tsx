@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface User {
   id: string;
@@ -62,16 +62,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchUserProfile = async (supabaseUser: SupabaseUser) => {
     try {
-      // First check if the profile exists
       let { data: profile, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
-        .maybeSingle();
+        .single();
 
-      if (error) throw error;
+      if (error && error.message !== 'JSON object requested, multiple (or no) rows returned') {
+        throw error;
+      }
 
-      // If profile doesn't exist, create it
       if (!profile) {
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
@@ -89,7 +89,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile = newProfile;
       }
 
-      // Fetch following and followers
       const { data: followingData } = await supabase
         .from('follows')
         .select('following_id')
@@ -112,10 +111,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       setUser(userProfile);
       setIsAuthenticated(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching user profile:', error);
       setUser(null);
       setIsAuthenticated(false);
+      toast({
+        variant: "destructive",
+        description: error.message || "Failed to fetch user profile",
+      });
     }
   };
 
@@ -129,10 +132,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      toast({
-        description: "Logged in successfully!",
-      });
-      navigate('/dashboard');
+      if (data.user) {
+        await fetchUserProfile(data.user);
+        toast({
+          description: "Logged in successfully!",
+        });
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -147,16 +153,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLoading(true);
       
-      // First create the auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name: name,
+          },
+        },
       });
 
       if (authError) throw authError;
       if (!authData.user) throw new Error("Failed to create user");
 
-      // Then create the profile
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
